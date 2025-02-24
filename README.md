@@ -1,0 +1,2 @@
+# serverscript
+Installscript für Server
