@@ -85,6 +85,8 @@ if whiptail --title "Erweitertes Logging & Benachrichtigung" --yesno "Möchtest 
         whiptail --title "Fehler" --msgbox "Keine E-Mail-Adresse eingegeben. Erweiterte Benachrichtigung wird deaktiviert." 10 60
     else
         log_info "Erweitertes Logging und E-Mail Benachrichtigung aktiviert. Admin: $ADMIN_EMAIL"
+        # Installiere Mailutils, damit der 'mail'-Befehl verfügbar ist
+        apt-get update && apt-get install -y mailutils
     fi
 fi
 
@@ -217,7 +219,15 @@ if whiptail --title "Fail2Ban konfigurieren" --yesno "Möchtest du Fail2Ban inst
     fi
     show_gauge
     systemctl restart fail2ban
-    FAIL2BAN_STATUS=$(fail2ban-client status sshd)
+    # Fail2Ban-Status abfragen, Fehler abfangen ohne Skriptabbruch
+    set +e
+    FAIL2BAN_STATUS=$(fail2ban-client status sshd 2>&1)
+    RETVAL=$?
+    set -e
+    if [ $RETVAL -ne 0 ]; then
+         log_info "Warnung: Fail2Ban Status konnte nicht abgefragt werden. Details: $FAIL2BAN_STATUS"
+         FAIL2BAN_STATUS="Fail2Ban Status nicht verfügbar."
+    fi
     log_info "Fail2Ban konfiguriert."
     whiptail --title "Fail2Ban Status" --msgbox "Fail2Ban wurde konfiguriert.\n\nStatus:\n$FAIL2BAN_STATUS" 15 70
 fi
@@ -262,11 +272,6 @@ fi
 ##############################
 # Zusätzliche Sicherheits-Hardening-Maßnahmen
 ##############################
-# Erklärung:  
-# Neben der Deaktivierung des Root Logins und IPv6 bieten zusätzliche Hardening-Maßnahmen weitere Sicherheit:
-# - SSH-Banner: Zeigt beim Login einen Warnhinweis an (z. B. rechtliche Hinweise).
-# - Strengere PAM-Konfiguration: Zusätzliche Prüfungen beim Login.
-# - IDS (Intrusion Detection System) wie OSSEC: Überwacht Systemaktivitäten und meldet verdächtiges Verhalten.
 HARDENING_INFO="Optionale Sicherheits-Hardening-Maßnahmen:
 - SSH-Banner: Zeigt beim Login einen Warnhinweis an.
 - Strengere PAM-Konfiguration: Zusätzliche Sicherheitsprüfungen.
@@ -298,7 +303,7 @@ fi
 whiptail --title "Fertig" --msgbox "Alle gewählten Konfigurationen wurden durchgeführt." 10 60
 log_info "Server Setup erfolgreich abgeschlossen."
 
-# Bei aktiviertem erweiterten Logging: Sende Logfile per E-Mail an den Administrator
+# Bei aktiviertem erweitertem Logging: Sende Logfile per E-Mail an den Administrator
 if [ -n "$ADMIN_EMAIL" ]; then
     mail -s "Server Setup abgeschlossen" "$ADMIN_EMAIL" < "$LOG_FILE"
 fi
